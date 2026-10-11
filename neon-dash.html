@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#080b14">
+<title>Neon Dash — GameZone</title>
+<style>
+:root{--bg:#080b14;--panel:#111827;--cyan:#39f5ff;--pink:#ff3ca6;--gold:#ffe66d;--text:#f4f7ff}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(circle at 50% 0,#17213b 0,#080b14 55%);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{display:flex;justify-content:center;padding:14px 10px 24px}.wrap{width:min(100%,760px)}header{text-align:center;margin:4px 0 12px}
+.brand{font-weight:900;letter-spacing:3px;font-size:clamp(24px,6vw,40px);text-shadow:0 0 14px #39f5ff88}.brand span{color:var(--cyan)}.sub{color:#a8b6d9;font-size:13px;margin-top:3px}
+.hud{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}.stat{background:#111827d9;border:1px solid #263653;border-radius:13px;padding:9px;text-align:center}.stat small{display:block;color:#91a4cb;font-size:11px;text-transform:uppercase;letter-spacing:1px}.stat strong{font-size:20px}
+.gamebox{position:relative;border:1px solid #294064;border-radius:18px;overflow:hidden;box-shadow:0 0 30px #39f5ff14;background:#080d19}
+canvas{display:block;width:100%;height:auto;aspect-ratio:360/520;touch-action:none}
+.overlay{position:absolute;inset:0;background:#050916c9;display:flex;align-items:center;justify-content:center;text-align:center;padding:22px}.overlay.hidden{display:none}.modal{width:min(100%,360px);padding:22px 18px;border:1px solid #34506d;border-radius:18px;background:#101a2b;box-shadow:0 0 30px #39f5ff20}.modal h2{margin:0 0 8px;color:var(--cyan);font-size:27px}.modal p{line-height:1.5;color:#c3cde3;font-size:14px}.btn{border:0;border-radius:12px;padding:13px 20px;background:linear-gradient(100deg,#39f5ff,#8a70ff);color:#07101d;font-weight:900;font-size:15px;cursor:pointer;box-shadow:0 5px 18px #39f5ff30}.btn:active{transform:scale(.98)}.help{font-size:12px;color:#91a4cb;margin-top:12px}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.control{background:#121b2b;border:1px solid #2c4162;color:white;border-radius:14px;padding:14px 8px;font-weight:800;font-size:15px;touch-action:manipulation}.control span{color:var(--cyan);font-size:19px;margin-right:6px}.tips{margin-top:13px;color:#aab8d6;font-size:12px;text-align:center;line-height:1.6}.tips b{color:#fff}
+footer{text-align:center;font-size:11px;color:#6e83ab;margin-top:16px}
+</style>
+</head>
+<body><main class="wrap">
+<header><div class="brand">NEON <span>DASH</span></div><div class="sub">A GameZone mini-game • Dodge the blocks. Beat your best!</div></header>
+<section class="hud"><div class="stat"><small>Score</small><strong id="score">0</strong></div><div class="stat"><small>Best</small><strong id="best">0</strong></div><div class="stat"><small>Speed</small><strong id="speed">1.0×</strong></div></section>
+<div class="gamebox">
+<canvas id="game" width="360" height="520" aria-label="Neon Dash game area"></canvas>
+<div class="overlay" id="overlay"><div class="modal"><h2 id="title">Ready to Dash?</h2><p id="message">Move left and right. Avoid the falling neon blocks and collect the glowing stars to earn bonus points.</p><button class="btn" id="start">▶ START GAME</button><div class="help">Keyboard: ← → or A / D<br>Phone: use the buttons below</div></div></div>
+</div>
+<div class="controls"><button class="control" id="left"><span>◀</span> LEFT</button><button class="control" id="right">RIGHT <span>▶</span></button></div>
+<div class="tips">💎 <b>Tip:</b> Stars give +25 points. Survive as long as you can!<br>Game progress and best score are saved on this device.</div>
+<footer>GAMEZONE • NEON DASH</footer>
+</main>
+<script>
+(()=>{
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+const $=id=>document.getElementById(id);
+let W=360,H=520,player,blocks,stars,particles,score,best,playing,over,last,spawn,starSpawn,keys={},move=0,speed;
+try{best=Number(localStorage.getItem('neonDashBest')||0)}catch(e){best=0}
+$('best').textContent=best;
+function reset(){player={x:W/2-13,y:H-72,w:26,h:32};blocks=[];stars=[];particles=[];score=0;speed=1;spawn=0;starSpawn=0;last=0;move=0;$('score').textContent='0';$('speed').textContent='1.0×'}
+function roundRect(x,y,w,h,r,fill,stroke){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill) {ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.stroke()}}
+function drawBg(t){ctx.fillStyle='#080d19';ctx.fillRect(0,0,W,H);ctx.strokeStyle='#14243c';ctx.lineWidth=1;let off=(t*.035)%32;for(let x=0;x<W;x+=32){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}for(let y=-32+off;y<H;y+=32){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}for(let i=0;i<28;i++){let x=(i*71+20)%W,y=(i*97+t*.018)%H;ctx.fillStyle='#83cfff55';ctx.fillRect(x,y,2,2)}}
+function drawPlayer(){ctx.save();ctx.shadowBlur=20;ctx.shadowColor='#39f5ff';roundRect(player.x,player.y,player.w,player.h,'7','#39f5ff');ctx.shadowBlur=0;roundRect(player.x+5,player.y+7,16,8,'3','#10223a');ctx.fillStyle='#07101b';ctx.fillRect(player.x+6,player.y+20,4,5);ctx.fillRect(player.x+16,player.y+20,4,5);ctx.restore()}
+function draw(){let t=performance.now();drawBg(t);for(const b of blocks){ctx.save();ctx.shadowBlur=15;ctx.shadowColor='#ff3ca6';roundRect(b.x,b.y,b.w,b.h,6,'#ff3ca6');ctx.restore();ctx.fillStyle='#ffd0e9';ctx.fillRect(b.x+5,b.y+5,Math.max(2,b.w-10),3)}for(const s of stars){ctx.save();ctx.translate(s.x,s.y);ctx.rotate(t*.002);ctx.shadowBlur=18;ctx.shadowColor='#ffe66d';ctx.fillStyle='#ffe66d';ctx.beginPath();for(let i=0;i<10;i++){let r=i%2?5:11,a=i*Math.PI/5-Math.PI/2;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r)}ctx.closePath();ctx.fill();ctx.restore()}for(const p of particles){ctx.globalAlpha=Math.max(0,p.life/25);ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,3,3);ctx.globalAlpha=1}drawPlayer();if(playing){ctx.fillStyle='#9db2d8';ctx.font='12px system-ui';ctx.fillText('DODGE!',12,22)}}
+function burst(x,y,color){for(let i=0;i<12;i++)particles.push({x,y,vx:(Math.random()-.5)*5,vy:(Math.random()-.5)*5,life:25,color})}
+function hit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function end(){playing=false;over=true;burst(player.x+13,player.y+16,'#39f5ff');if(score>best){best=score;$('best').textContent=best;try{localStorage.setItem('neonDashBest',best)}catch(e){}}$('title').textContent='GAME OVER';$('message').innerHTML=`Your score: <b>${score}</b><br>Best score: <b>${best}</b><br>${score>=best&&score>0?'New personal best! Amazing!':'One more run? You can beat it!'}`;$('start').textContent='↻ PLAY AGAIN';$('overlay').classList.remove('hidden');draw()}
+function frame(t){if(!playing)return;if(!last)last=t;let dt=Math.min(2,(t-last)/16.67);last=t;speed=1+Math.min(2.2,score/350);$('speed').textContent=speed.toFixed(1)+'×';score+=Math.floor(dt);$('score').textContent=score;
+let dir=(keys.left?-1:0)+(keys.right?1:0)+move;player.x+=dir*4.5*dt;player.x=Math.max(4,Math.min(W-player.w-4,player.x));
+spawn+=dt;starSpawn+=dt;if(spawn>Math.max(15,43-score/22)){spawn=0;let w=24+Math.random()*38;blocks.push({x:5+Math.random()*(W-w-10),y:-30,w,h:15+Math.random()*22,vy:(2.4+Math.random()*1.8)*speed})}if(starSpawn>105){starSpawn=0;stars.push({x:18+Math.random()*(W-36),y:-15,w:15,h:15,vy:2.4*speed})}
+for(let i=blocks.length-1;i>=0;i--){let b=blocks[i];b.y+=b.vy*dt;if(hit(player,b)){end();return}if(b.y>H+30)blocks.splice(i,1)}
+for(let i=stars.length-1;i>=0;i--){let s=stars[i];s.y+=s.vy*dt;if(hit(player,{x:s.x-8,y:s.y-8,w:16,h:16})){score+=25;$('score').textContent=score;burst(s.x,s.y,'#ffe66d');stars.splice(i,1)}else if(s.y>H+20)stars.splice(i,1)}
+for(let i=particles.length-1;i>=0;i--){let p=particles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(p.life<=0)particles.splice(i,1)}
+draw();requestAnimationFrame(frame)}
+function start(){reset();playing=true;over=false;$('overlay').classList.add('hidden');requestAnimationFrame(frame)}
+$('start').addEventListener('click',start);
+function setMove(side,on){keys[side]=on}
+[['left','left'],['right','right']].forEach(([id,side])=>{let el=$(id);el.addEventListener('pointerdown',e=>{e.preventDefault();setMove(side,true)});['pointerup','pointercancel','pointerleave'].forEach(ev=>el.addEventListener(ev,()=>setMove(side,false)))});
+window.addEventListener('keydown',e=>{if(['ArrowLeft','a','A'].includes(e.key)){keys.left=true;e.preventDefault()}if(['ArrowRight','d','D'].includes(e.key)){keys.right=true;e.preventDefault()}if((e.key===' '||e.key==='Enter')&&!playing){start();e.preventDefault()}});
+window.addEventListener('keyup',e=>{if(['ArrowLeft','a','A'].includes(e.key))keys.left=false;if(['ArrowRight','d','D'].includes(e.key))keys.right=false});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing){playing=false;$('title').textContent='PAUSED';$('message').textContent='You left the game tab. Press play to start a new run.';$('start').textContent='▶ PLAY';$('overlay').classList.remove('hidden')}});
+reset();draw();
+})();
+</script></body></html>
